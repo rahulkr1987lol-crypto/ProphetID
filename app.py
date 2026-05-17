@@ -8,26 +8,32 @@ import plotly.graph_objects as go
 st.set_page_config(page_title="ProphetID", layout="wide")
 st.title("🚀 ProphetID - NSE Intraday Trading Prophet")
 
-# Portfolio & Secrets
+# Portfolio
 if 'portfolio' not in st.session_state:
     st.session_state.portfolio = {'cash': 10000, 'trades': [], 'pnl': 0, 'days_profitable': 0}
 
-if 'telegram_token' not in st.session_state:
-    st.session_state.telegram_token = st.secrets["telegram"]["bot_token"]
-if 'chat_id' not in st.session_state:
-    st.session_state.chat_id = st.secrets["telegram"]["chat_id"]
+# Safe Secrets Loading
+try:
+    telegram_token = st.secrets["telegram"]["bot_token"]
+    chat_id = st.secrets["telegram"]["chat_id"]
+except:
+    telegram_token = None
+    chat_id = None
+    st.sidebar.error("⚠️ Set Secrets in Streamlit Cloud Settings")
 
 st.sidebar.header("Settings")
 broker = st.sidebar.selectbox("Broker", ["Zerodha Kite", "Upstox", "Paper Trading Only"])
 
-st.sidebar.success("✅ Telegram Connected Permanently")
+if telegram_token:
+    st.sidebar.success("✅ Telegram Connected Permanently")
 
 def send_telegram(message):
-    try:
-        url = f"https://api.telegram.org/bot{st.session_state.telegram_token}/sendMessage"
-        requests.post(url, json={"chat_id": st.session_state.chat_id, "text": message, "parse_mode": "HTML"}, timeout=10)
-    except:
-        st.sidebar.error("Telegram failed")
+    if telegram_token and chat_id:
+        try:
+            url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
+            requests.post(url, json={"chat_id": chat_id, "text": message, "parse_mode": "HTML"}, timeout=10)
+        except:
+            pass
 
 @st.cache_data(ttl=300)
 def get_data(symbol):
@@ -39,7 +45,7 @@ def get_data(symbol):
     except:
         return pd.DataFrame()
 
-st.header("📊 ProphetID Today's High-Probability Intraday Picks")
+st.header("📊 ProphetID Today's High-Probability Picks")
 
 sectors = {
     "Metals": ["TATASTEEL.NS", "HINDALCO.NS"],
@@ -90,12 +96,12 @@ P&L: ₹{pnl:.2f}
 Remaining: ₹{st.session_state.portfolio['cash']}"""
             
             send_telegram(alert)
-            st.success(f"✅ Trade Executed by ProphetID! Telegram sent.")
+            st.success(f"✅ Trade Executed! Telegram sent.")
             
             if pnl > 0:
                 st.session_state.portfolio['days_profitable'] += 1
 
-# Portfolio
+# Portfolio Summary
 st.header("💰 Portfolio Summary")
 c1, c2, c3 = st.columns(3)
 c1.metric("Remaining Daily Limit", f"₹{st.session_state.portfolio['cash']}")
@@ -106,4 +112,4 @@ if st.button("📨 Send Daily Summary to Telegram"):
     send_telegram(f"<b>ProphetID Daily Summary</b>\nP&L: ₹{st.session_state.portfolio['pnl']:.2f}\nRemaining: ₹{st.session_state.portfolio['cash']}")
     st.success("Summary sent!")
 
-st.caption("ProphetID v1.0 | Telegram Permanent | ₹10,000 Daily Limit | Refresh Safe")
+st.caption("ProphetID v1.0 | ₹10,000 Daily Limit | Ready for Intraday")
