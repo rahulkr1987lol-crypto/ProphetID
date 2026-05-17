@@ -32,31 +32,33 @@ if mode == "Zerodha Live":
             kite.set_access_token(access_token)
             st.sidebar.success("✅ Zerodha Connected")
         else:
-            st.sidebar.warning("⚠️ Need Access Token (Run Login below)")
-    except:
-        st.sidebar.error("Zerodha setup incomplete")
+            st.sidebar.warning("⚠️ Run Login below to get Access Token")
+    except Exception as e:
+        st.sidebar.error(f"Zerodha Error: {e}")
 
 def send_telegram(message):
-    requests.post(f"https://api.telegram.org/bot{telegram_token}/sendMessage", 
-                  json={"chat_id": chat_id, "text": message, "parse_mode": "HTML"})
-
-# Daily Login Helper
-if st.sidebar.button("🔑 Generate Zerodha Access Token"):
-    st.sidebar.info("Go to this URL in new tab and login:")
-    login_url = f"https://kite.trade/connect/login?api_key={api_key}&v=3"
-    st.sidebar.markdown(f"[🔗 Click to Login on Zerodha]({login_url})")
-    st.sidebar.info("After login, copy the 'request_token' from URL and paste below")
-
-request_token = st.sidebar.text_input("Paste Request Token here (after login)")
-if st.sidebar.button("✅ Generate Access Token"):
     try:
-        data = kite.generate_session(request_token, api_secret=api_secret)
-        access_token = data['access_token']
-        st.success(f"Access Token Generated: {access_token[:10]}...")
-        st.sidebar.success("Token saved! Refresh app.")
-        # Note: You can manually add it to secrets later
-    except Exception as e:
-        st.error(f"Error: {e}")
+        requests.post(f"https://api.telegram.org/bot{telegram_token}/sendMessage",
+                      json={"chat_id": chat_id, "text": message, "parse_mode": "HTML"})
+    except:
+        pass
+
+# Login Helper
+if st.sidebar.button("🔑 Generate Zerodha Access Token"):
+    login_url = f"https://kite.trade/connect/login?api_key={api_key}&v=3"
+    st.sidebar.markdown(f"[🔗 Open Zerodha Login]({login_url})")
+    st.sidebar.info("After login, copy 'request_token' from URL and paste below")
+
+request_token = st.sidebar.text_input("Paste Request Token (from URL)")
+if st.sidebar.button("✅ Generate & Save Access Token"):
+    if kite and request_token:
+        try:
+            data = kite.generate_session(request_token, api_secret=api_secret)
+            new_token = data['access_token']
+            st.success(f"✅ Access Token Generated: {new_token[:15]}...")
+            st.sidebar.success("Token ready! Refresh app.")
+        except Exception as e:
+            st.error(f"Token Error: {e}")
 
 @st.cache_data(ttl=60)
 def get_data(symbol):
@@ -65,27 +67,39 @@ def get_data(symbol):
     except:
         return pd.DataFrame()
 
-# Rest of the app (same as before with live order)
 st.header("📊 ProphetID Smart Picks + News")
 
-# ... [I kept the same sectors, news, charts, execute buttons as v2.5 for brevity]
+news = ["Metals strong on global cues", "Pharma defensive", "Nifty support ~23,500"]
+for item in news:
+    st.write(f"• {item}")
 
-# Execute button logic with real Zerodha order
-        if st.button(...):
-            # paper logic...
-            if mode == "Zerodha Live" and kite and access_token:
-                try:
-                    qty = int(trade_size / latest['Close']) if 'Close' in latest else 1
-                    order_id = kite.place_order(
-                        variety=kite.VARIETY_REGULAR,
-                        tradingsymbol=sym.replace(".NS",""),
-                        exchange=kite.EXCHANGE_NSE,
-                        transaction_type=kite.TRANSACTION_TYPE_BUY if "BUY" in signal else kite.TRANSACTION_TYPE_SELL,
-                        quantity=qty,
-                        product=kite.PRODUCT_MIS,
-                        order_type=kite.ORDER_TYPE_MARKET
-                    )
-                    st.success(f"✅ Zerodha Order Placed! ID: {order_id}")
-                    send_telegram(f"<b>Zerodha Order ID:</b> {order_id}")
-                except Exception as e:
-                    st.error(f"Order Failed: {str(e)}")
+sectors = {
+    "Metals 🔥": ["TATASTEEL.NS", "HINDALCO.NS"],
+    "Pharma": ["DRREDDY.NS", "CIPLA.NS"],
+    "Auto": ["TATAMOTORS.NS"],
+    "High Volume": ["BHARTIARTL.NS", "RELIANCE.NS"]
+}
+
+selected = st.selectbox("Choose Sector", list(sectors.keys()))
+
+for sym in sectors[selected]:
+    data = get_data(sym)
+    st.subheader(f"📈 {sym.replace('.NS', '')}")
+    
+    if not data.empty:
+        latest = data.iloc[-1]
+        prev = data.iloc[-2] if len(data) > 1 else latest
+        change = (latest['Close'] - prev['Close']) / prev['Close'] * 100
+        fig = go.Figure(data=[go.Candlestick(x=data.index, open=data['Open'], high=data['High'], low=data['Low'], close=data['Close'])])
+        fig.update_layout(height=380, title=f"{sym} Chart")
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        change = 0.0
+        latest = pd.Series({'Close': 0})
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric(sym.replace(".NS",""), f"₹{latest['Close']:.2f}", f"{change:.2f}%")
+    signal = "🟢 STRONG BUY" if change > 0.3 else "🔴 SELL" if change < -0.3 else "🟡 MONITOR"
+    col3.write(f"**Signal**: {signal}")
+
+    trade_size =
