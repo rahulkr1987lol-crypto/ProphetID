@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 from kiteconnect import KiteConnect
 
 st.set_page_config(page_title="ProphetID", layout="wide")
-st.title("🚀 ProphetID v5.4 - Autonomous Engine with Dynamic Sizing + Volume Analysis")
+st.title("🚀 ProphetID v5.5 - Autonomous Intraday Engine with Dynamic Sizing")
 
 # Portfolio
 if 'portfolio' not in st.session_state:
@@ -49,7 +49,6 @@ def square_off_all():
 
 square_off_all()
 
-# Main Scanner with Dynamic Sizing + Volume Analysis
 st.header("📊 ProphetID Smart Scanner + Volume Analysis")
 
 sectors = {
@@ -70,8 +69,8 @@ for sym in sectors[selected]:
         prev_idx = max(0, len(data) - 10)
         change = (latest['Close'] - data.iloc[prev_idx]['Close']) / data.iloc[prev_idx]['Close'] * 100
         avg_volume = data['Volume'].mean()
-        current_volume = data['Volume'].iloc[-1]
-        volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1
+        current_volume = data['Volume'].iloc[-1] if len(data) > 0 else 0
+        volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1.0
 
         fig = go.Figure(data=[go.Candlestick(x=data.index, open=data['Open'], high=data['High'], low=data['Low'], close=data['Close'])])
         fig.update_layout(height=350, title=f"{sym} Chart")
@@ -84,13 +83,13 @@ for sym in sectors[selected]:
     # Dynamic Position Sizing
     risk_amount = st.session_state.portfolio['cash'] * (risk_per_trade / 100)
     entry_price = latest['Close']
-    stop_distance = entry_price * (sl_percent / 100) if 'sl_percent' in locals() else entry_price * 0.008
+    stop_distance = entry_price * (0.008)  # 0.8% default SL
     dynamic_qty = int(risk_amount / stop_distance) if stop_distance > 0 else 1
     trade_size = min(dynamic_qty * entry_price, st.session_state.portfolio['cash'] * 0.45)
 
     col1, col2, col3, col4 = st.columns(4)
     col1.metric(sym.replace(".NS",""), f"₹{entry_price:.2f}", f"{change:.2f}%")
-    col2.metric("Volume Ratio", f"{volume_ratio:.2f}x", "High" if volume_ratio > 1.5 else "Normal")
+    col2.metric("Volume Ratio", f"{volume_ratio:.2f}x", "🔥 High" if volume_ratio > 1.5 else "Normal")
     col3.metric("Dynamic Size", f"₹{trade_size:.0f}")
     signal = "🟢 STRONG BUY" if change > 0.5 else "🔴 SELL" if change < -0.5 else "🟡 MONITOR"
     col4.write(f"**Signal**: {signal}")
@@ -104,34 +103,4 @@ for sym in sectors[selected]:
         st.session_state.portfolio['cash'] -= trade_size
         st.success(f"✅ Executed | Dynamic Size ₹{trade_size:.0f} | SL ₹{sl} | Target ₹{target}")
 
-        alert = f"""<b>ProphetID TRADE</b>
-Symbol: {sym.replace('.NS','')}
-Action: {signal}
-Size: ₹{trade_size:.0f}
-SL: ₹{sl} | Target: ₹{target}
-Volume Ratio: {volume_ratio:.2f}x"""
-        send_telegram(alert)
-
-        # Zerodha Order
-        if mode == "Zerodha Live" and kite:
-            try:
-                qty = max(1, int(trade_size / entry_price))
-                kite.place_order(variety=kite.VARIETY_BO, tradingsymbol=sym.replace(".NS",""), exchange=kite.EXCHANGE_NSE,
-                                 transaction_type=kite.TRANSACTION_TYPE_BUY if "BUY" in signal else kite.TRANSACTION_TYPE_SELL,
-                                 quantity=qty, product=kite.PRODUCT_MIS, order_type=kite.ORDER_TYPE_MARKET,
-                                 squareoff=int(abs(target - entry_price) * qty), stoploss=int(abs(entry_price - sl) * qty))
-                st.success("✅ Bracket Order Placed!")
-            except Exception as e:
-                st.error(f"Order Failed: {e}")
-
-# Portfolio
-st.header("💰 Portfolio Summary")
-c1, c2, c3 = st.columns(3)
-c1.metric("Remaining Limit", f"₹{st.session_state.portfolio['cash']}")
-c2.metric("Today's P&L", f"₹{st.session_state.portfolio['pnl']:.2f}")
-c3.metric("Win Days", st.session_state.portfolio['days_profitable'])
-
-if st.button("🛑 Manual Square-off All"):
-    square_off_all()
-
-st.caption("ProphetID v5.4 | Dynamic Sizing + Real-time Volume + Auto Square-off")
+        alert = f"""<b>ProphetID
