@@ -49,7 +49,7 @@ def square_off_all():
 
 square_off_all()
 
-st.header("📊 ProphetID Smart Scanner + Volume Analysis")
+st.header("📊 ProphetID Smart Scanner")
 
 sectors = {
     "Metals 🔥": ["TATASTEEL.NS", "HINDALCO.NS"],
@@ -68,19 +68,15 @@ for sym in sectors[selected]:
         latest = data.iloc[-1]
         prev = data.iloc[-10]
         change = (latest['Close'] - prev['Close']) / prev['Close'] * 100
-        avg_volume = data['Volume'].mean()
-        current_volume = data['Volume'].iloc[-1]
-        volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1.0
     else:
         change = 0.0
-        volume_ratio = 1.0
         latest = pd.Series({'Close': 0})
 
     fig = go.Figure(data=[go.Candlestick(x=data.index, open=data['Open'], high=data['High'], low=data['Low'], close=data['Close'])]) if not data.empty else go.Figure()
     fig.update_layout(height=350, title=f"{sym} Chart")
     st.plotly_chart(fig, use_container_width=True)
 
-    # Dynamic Position Sizing
+    # Dynamic Position Sizing (Safe)
     risk_amount = st.session_state.portfolio['cash'] * (risk_per_trade / 100)
     entry_price = latest['Close']
     stop_distance = entry_price * 0.008
@@ -89,8 +85,7 @@ for sym in sectors[selected]:
 
     col1, col2, col3, col4 = st.columns(4)
     col1.metric(sym.replace(".NS",""), f"₹{entry_price:.2f}", f"{change:.2f}%")
-    col2.metric("Volume Ratio", f"{volume_ratio:.2f}x", "🔥 High" if volume_ratio > 1.5 else "Normal")
-    col3.metric("Dynamic Size", f"₹{trade_size:.0f}")
+    col2.metric("Dynamic Size", f"₹{trade_size:.0f}")
     signal = "🟢 STRONG BUY" if change > 0.5 else "🔴 SELL" if change < -0.5 else "🟡 MONITOR"
     col4.write(f"**Signal**: {signal}")
 
@@ -103,7 +98,7 @@ for sym in sectors[selected]:
         st.session_state.portfolio['cash'] -= trade_size
         st.success(f"✅ Executed | Size ₹{trade_size:.0f} | SL ₹{sl} | Target ₹{target}")
 
-        alert = f"<b>ProphetID TRADE</b>\nSymbol: {sym.replace('.NS','')}\nAction: {signal}\nSize: ₹{trade_size:.0f}\nSL: ₹{sl} | Target: ₹{target}\nVolume Ratio: {volume_ratio:.2f}x"
+        alert = f"<b>ProphetID TRADE</b>\nSymbol: {sym.replace('.NS','')}\nAction: {signal}\nSize: ₹{trade_size:.0f}\nSL: ₹{sl} | Target: ₹{target}"
         send_telegram(alert)
 
         if mode == "Zerodha Live" and kite:
@@ -134,4 +129,4 @@ c3.metric("Win Days", st.session_state.portfolio['days_profitable'])
 if st.button("🛑 Manual Square-off All"):
     square_off_all()
 
-st.caption("ProphetID v5.6 | Dynamic Sizing + Volume Analysis + Auto Square-off | Stable")
+st.caption("ProphetID v5.6 | Stable Version | Dynamic Sizing + Auto Square-off")
