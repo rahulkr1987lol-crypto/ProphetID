@@ -32,9 +32,9 @@ if mode == "Zerodha Live":
             kite.set_access_token(access_token)
             st.sidebar.success("✅ Zerodha Connected")
         else:
-            st.sidebar.warning("⚠️ Run Login below to get Access Token")
+            st.sidebar.warning("⚠️ Generate Access Token below")
     except Exception as e:
-        st.sidebar.error(f"Zerodha Error: {e}")
+        st.sidebar.error(f"Zerodha Setup Error: {e}")
 
 def send_telegram(message):
     try:
@@ -43,22 +43,21 @@ def send_telegram(message):
     except:
         pass
 
-# Login Helper
+# Zerodha Login Helper
 if st.sidebar.button("🔑 Generate Zerodha Access Token"):
     login_url = f"https://kite.trade/connect/login?api_key={api_key}&v=3"
-    st.sidebar.markdown(f"[🔗 Open Zerodha Login]({login_url})")
-    st.sidebar.info("After login, copy 'request_token' from URL and paste below")
+    st.sidebar.markdown(f"[🔗 Click here to Login on Zerodha]({login_url})")
+    st.sidebar.info("After login, copy 'request_token' from the URL and paste below")
 
-request_token = st.sidebar.text_input("Paste Request Token (from URL)")
-if st.sidebar.button("✅ Generate & Save Access Token"):
+request_token = st.sidebar.text_input("Paste Request Token here")
+if st.sidebar.button("✅ Generate Access Token"):
     if kite and request_token:
         try:
             data = kite.generate_session(request_token, api_secret=api_secret)
-            new_token = data['access_token']
-            st.success(f"✅ Access Token Generated: {new_token[:15]}...")
-            st.sidebar.success("Token ready! Refresh app.")
+            st.success(f"✅ Access Token Generated: {data['access_token'][:15]}...")
+            st.sidebar.success("Refresh the app!")
         except Exception as e:
-            st.error(f"Token Error: {e}")
+            st.error(f"Error: {e}")
 
 @st.cache_data(ttl=60)
 def get_data(symbol):
@@ -75,31 +74,4 @@ for item in news:
 
 sectors = {
     "Metals 🔥": ["TATASTEEL.NS", "HINDALCO.NS"],
-    "Pharma": ["DRREDDY.NS", "CIPLA.NS"],
-    "Auto": ["TATAMOTORS.NS"],
-    "High Volume": ["BHARTIARTL.NS", "RELIANCE.NS"]
-}
-
-selected = st.selectbox("Choose Sector", list(sectors.keys()))
-
-for sym in sectors[selected]:
-    data = get_data(sym)
-    st.subheader(f"📈 {sym.replace('.NS', '')}")
-    
-    if not data.empty:
-        latest = data.iloc[-1]
-        prev = data.iloc[-2] if len(data) > 1 else latest
-        change = (latest['Close'] - prev['Close']) / prev['Close'] * 100
-        fig = go.Figure(data=[go.Candlestick(x=data.index, open=data['Open'], high=data['High'], low=data['Low'], close=data['Close'])])
-        fig.update_layout(height=380, title=f"{sym} Chart")
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        change = 0.0
-        latest = pd.Series({'Close': 0})
-
-    col1, col2, col3 = st.columns(3)
-    col1.metric(sym.replace(".NS",""), f"₹{latest['Close']:.2f}", f"{change:.2f}%")
-    signal = "🟢 STRONG BUY" if change > 0.3 else "🔴 SELL" if change < -0.3 else "🟡 MONITOR"
-    col3.write(f"**Signal**: {signal}")
-
-    trade_size =
+    "Pharma
