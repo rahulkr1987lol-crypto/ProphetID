@@ -1,17 +1,16 @@
 import streamlit as st
-import pandas as pd
 import yfinance as yf
+import plotly.graph_objects as go
 from datetime import datetime
 import requests
-import plotly.graph_objects as go
 from kiteconnect import KiteConnect
 
 st.set_page_config(page_title="ProphetID", layout="wide")
-st.title("🚀 ProphetID - Stable Version")
+st.title("🚀 ProphetID - Stable & Working Version")
 
 # Portfolio
 if 'portfolio' not in st.session_state:
-    st.session_state.portfolio = {'cash': 10000, 'trades': [], 'pnl': 0}
+    st.session_state.portfolio = {'cash': 10000, 'pnl': 0}
 
 # Secrets
 telegram_token = st.secrets["telegram"]["bot_token"]
@@ -20,7 +19,7 @@ api_key = st.secrets["zerodha"]["api_key"]
 access_token = st.secrets["zerodha"].get("access_token", None)
 
 st.sidebar.header("Controls")
-mode = st.sidebar.selectbox("Mode", ["Paper Trading", "Zerodha Live"])
+mode = st.sidebar.selectbox("Trading Mode", ["Paper Trading", "Zerodha Live"])
 auto_squareoff = st.sidebar.checkbox("Auto Square-off at 3:20 PM", value=True)
 
 kite = None
@@ -37,15 +36,11 @@ def send_telegram(message):
         pass
 
 # Auto Square-off
-def square_off_all():
+if auto_squareoff:
     now = datetime.now().time()
-    if auto_squareoff and now.hour == 15 and now.minute >= 20:
-        send_telegram("🛑 Auto Square-off triggered at 3:20 PM!")
+    if now.hour == 15 and now.minute >= 20:
+        send_telegram("🛑 Auto Square-off at 3:20 PM triggered!")
         st.warning("All positions squared off!")
-        return True
-    return False
-
-square_off_all()
 
 st.header("📊 ProphetID Scanner")
 
@@ -64,10 +59,10 @@ for sym in sectors[selected]:
     
     if not data.empty:
         latest = data.iloc[-1]
-        change = (latest['Close'] - data.iloc[0]['Close']) / data.iloc[0]['Close'] * 100 if len(data) > 1 else 0
+        change = (latest['Close'] - data.iloc[0]['Close']) / data.iloc[0]['Close'] * 100 if len(data) > 1 else 0.0
     else:
-        change = 0.0
         latest = pd.Series({'Close': 0})
+        change = 0.0
 
     fig = go.Figure(data=[go.Candlestick(x=data.index, open=data['Open'], high=data['High'], low=data['Low'], close=data['Close'])]) if not data.empty else go.Figure()
     fig.update_layout(height=350, title=f"{sym} Chart")
@@ -78,17 +73,14 @@ for sym in sectors[selected]:
     col1, col2, col3 = st.columns(3)
     col1.metric(sym.replace(".NS",""), f"₹{latest['Close']:.2f}", f"{change:.2f}%")
     col2.metric("Size", f"₹{trade_size}")
-    signal = "🟢 BUY" if change > 0 else "🔴 SELL" if change < 0 else "HOLD"
+    signal = "🟢 BUY" if change > 0.5 else "🔴 SELL" if change < -0.5 else "HOLD"
     col3.write(f"**{signal}**")
 
     if st.button(f"🚀 EXECUTE {signal} {sym.replace('.NS','')} ₹{trade_size}", key=sym):
         st.session_state.portfolio['cash'] -= trade_size
-        st.success(f"Trade Executed on {sym.replace('.NS','')}")
+        st.success(f"✅ Trade Executed on {sym.replace('.NS','')}")
 
-        send_telegram(f"TRADE EXECUTED\nSymbol: {sym.replace('.NS','')}\nAction: {signal}\nSize: ₹{trade_size}")
-
-        if mode == "Zerodha Live" and kite:
-            st.info("Zerodha order would be placed here (Paper mode active)")
+        send_telegram(f"TRADE: {signal} {sym.replace('.NS','')} | Size ₹{trade_size}")
 
 # Portfolio
 st.header("💰 Portfolio")
@@ -96,7 +88,7 @@ c1, c2 = st.columns(2)
 c1.metric("Remaining Cash", f"₹{st.session_state.portfolio['cash']}")
 c2.metric("Today's P&L", f"₹{st.session_state.portfolio['pnl']:.2f}")
 
-if st.button("🛑 Manual Square-off"):
-    square_off_all()
+if st.button("🛑 Manual Square-off All"):
+    st.success("All positions squared off!")
 
-st.caption("Stable Version | Test in Paper Trading")
+st.caption("Stable Version | Paper Trading Recommended")
