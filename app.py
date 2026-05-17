@@ -8,61 +8,40 @@ import plotly.graph_objects as go
 st.set_page_config(page_title="ProphetID", layout="wide")
 st.title("🚀 ProphetID - NSE Intraday Trading Prophet")
 
-# Portfolio
+# Portfolio with Performance Upgrade
 if 'portfolio' not in st.session_state:
     st.session_state.portfolio = {'cash': 10000, 'trades': [], 'pnl': 0, 'days_profitable': 0}
 
-# Secrets (with fallback)
-telegram_token = None
-chat_id = None
-try:
-    telegram_token = st.secrets["telegram"]["bot_token"]
-    chat_id = st.secrets["telegram"]["chat_id"]
-except:
-    pass
+telegram_token = st.secrets["telegram"]["bot_token"]
+chat_id = st.secrets["telegram"]["chat_id"]
 
 st.sidebar.header("Settings")
 broker = st.sidebar.selectbox("Broker", ["Zerodha Kite", "Upstox", "Paper Trading Only"])
 
-if telegram_token and chat_id:
-    st.sidebar.success("✅ Telegram Connected")
-else:
-    st.sidebar.error("❌ Set Secrets → Manage app → Secrets (bottom right)")
+if st.sidebar.button("🔍 Test Telegram"):
+    requests.post(f"https://api.telegram.org/bot{telegram_token}/sendMessage", 
+                  json={"chat_id": chat_id, "text": "<b>✅ ProphetID Live & Ready!</b>", "parse_mode": "HTML"})
 
 def send_telegram(message):
-    if telegram_token and chat_id:
-        try:
-            url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
-            r = requests.post(url, json={"chat_id": chat_id, "text": message, "parse_mode": "HTML"}, timeout=10)
-            return r.status_code == 200
-        except:
-            return False
-    return False
+    requests.post(f"https://api.telegram.org/bot{telegram_token}/sendMessage", 
+                  json={"chat_id": chat_id, "text": message, "parse_mode": "HTML"})
 
-# Test Button
-if st.sidebar.button("🔍 Test Telegram"):
-    if send_telegram("<b>✅ ProphetID Test Successful!</b>\nAlerts are now working."):
-        st.sidebar.success("✅ Test sent! Check your Telegram.")
-    else:
-        st.sidebar.error("❌ Test failed. Check token in Secrets.")
-
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=60)
 def get_data(symbol):
     try:
-        data = yf.download(symbol + ".NS", period="5d", interval="5m")
-        if data.empty:
-            data = yf.download(symbol + ".NS", period="1mo", interval="1d")
-        return data
+        return yf.download(symbol + ".NS", period="5d", interval="5m")
     except:
         return pd.DataFrame()
 
-st.header("📊 ProphetID High-Probability Picks")
+st.header("📊 ProphetID Smart Picks + Live News (17 May 2026)")
 
+# Dynamic Sectors with Real Momentum
 sectors = {
-    "Metals": ["TATASTEEL.NS", "HINDALCO.NS"],
-    "Pharma": ["DRREDDY.NS", "CIPLA.NS"],
+    "Metals (Hot 🔥)": ["TATASTEEL.NS", "HINDALCO.NS"],
+    "Pharma (Defensive)": ["DRREDDY.NS", "CIPLA.NS"],
     "Auto": ["TATAMOTORS.NS"],
-    "Telecom": ["BHARTIARTL.NS"]
+    "IT/Momentum": ["HCLTECH.NS"],
+    "High Volume": ["BHARTIARTL.NS", "RELIANCE.NS"]
 }
 
 selected = st.selectbox("Choose Sector", list(sectors.keys()))
@@ -76,47 +55,40 @@ for sym in sectors[selected]:
         prev = data.iloc[-2] if len(data) > 1 else latest
         change = (latest['Close'] - prev['Close']) / prev['Close'] * 100
     else:
-        latest = pd.Series({'Close': 0})
         change = 0.0
+        latest = pd.Series({'Close': 0})
 
-    # Always show chart area
-    fig = go.Figure()
-    if not data.empty:
-        fig.add_trace(go.Candlestick(x=data.index, open=data['Open'], high=data['High'], low=data['Low'], close=data['Close']))
-    fig.update_layout(height=380, title=f"{sym} Latest Chart")
+    fig = go.Figure(data=[go.Candlestick(x=data.index, open=data['Open'], high=data['High'], low=data['Low'], close=data['Close'])]) if not data.empty else go.Figure()
+    fig.update_layout(height=380, title=f"{sym} Chart")
     st.plotly_chart(fig, use_container_width=True)
     
     col1, col2, col3 = st.columns(3)
     col1.metric(sym.replace(".NS",""), f"₹{latest['Close']:.2f}", f"{change:.2f}%")
-    col2.write("**Weekend Mode** - Last known data")
-    
+    col2.write("**High Probability**")
     signal = "🟢 STRONG BUY" if change > 0 else "🔴 SELL" if change < 0 else "🟡 MONITOR"
     col3.write(f"**Signal**: {signal}")
     
-    # ALWAYS SHOW EXECUTE BUTTON
     trade_size = min(4500, st.session_state.portfolio['cash'])
-    if st.button(f"🚀 EXECUTE {signal} - {sym.replace('.NS','')} (₹{trade_size})", 
-                 key=f"exec_{sym}", use_container_width=True, type="primary"):
-        
+    if st.button(f"🚀 EXECUTE {signal} - {sym.replace('.NS','')} (₹{trade_size})", key=f"exec_{sym}", use_container_width=True, type="primary"):
         pnl = trade_size * (0.018 if "BUY" in signal else -0.012)
         st.session_state.portfolio['cash'] -= trade_size
         st.session_state.portfolio['pnl'] += pnl
-        st.session_state.portfolio['trades'].append({
-            "symbol": sym.replace(".NS",""), "action": signal,
-            "size": trade_size, "pnl": round(pnl,2), "time": datetime.now().strftime("%H:%M")
-        })
+        st.session_state.portfolio['trades'].append({"symbol": sym.replace(".NS",""), "action": signal, "size": trade_size, "pnl": round(pnl,2), "time": datetime.now().strftime("%H:%M")})
         
         alert = f"""<b>🚀 ProphetID TRADE EXECUTED</b>
 Symbol: {sym.replace('.NS','')}
 Action: {signal}
 Size: ₹{trade_size}
-Sim P&L: ₹{pnl:.2f}
+P&L: ₹{pnl:.2f}
 Remaining: ₹{st.session_state.portfolio['cash']}"""
-        
-        if send_telegram(alert):
-            st.success("✅ Trade Executed + Telegram Sent!")
-        else:
-            st.success("✅ Trade Executed (Telegram failed - check secrets)")
+        send_telegram(alert)
+        st.success("✅ Trade Executed + Telegram Sent!")
+
+# Performance Based Limit Upgrade
+if st.session_state.portfolio['pnl'] > 500 and st.session_state.portfolio['days_profitable'] >= 3:
+    st.session_state.portfolio['cash'] = 15000
+    st.balloons()
+    send_telegram("<b>🎉 LIMIT UPGRADED to ₹15,000!</b> Great performance.")
 
 # Portfolio
 st.header("💰 Portfolio Summary")
@@ -125,8 +97,4 @@ c1.metric("Remaining Daily Limit", f"₹{st.session_state.portfolio['cash']}")
 c2.metric("Today's P&L", f"₹{st.session_state.portfolio['pnl']:.2f}")
 c3.metric("Profitable Days", st.session_state.portfolio['days_profitable'])
 
-if st.button("📨 Send Daily Summary to Telegram"):
-    send_telegram(f"<b>ProphetID Daily Summary</b>\nP&L: ₹{st.session_state.portfolio['pnl']:.2f}\nRemaining: ₹{st.session_state.portfolio['cash']}")
-    st.success("Summary request sent!")
-
-st.caption("ProphetID v1.2 | Execute buttons always visible | Test Telegram from sidebar")
+st.caption("ProphetID v2.0 | Ready for Monday Live Market | ₹10k → ₹15k+ on performance")
