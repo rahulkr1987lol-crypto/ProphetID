@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 from kiteconnect import KiteConnect
 
 st.set_page_config(page_title="ProphetID", layout="wide")
-st.title("🚀 ProphetID v5.5 - Autonomous Intraday Engine")
+st.title("🚀 ProphetID v5.6 - Stable Autonomous Engine")
 
 # Portfolio
 if 'portfolio' not in st.session_state:
@@ -64,21 +64,21 @@ for sym in sectors[selected]:
     data = yf.download(sym, period="5d", interval="5m", progress=False)
     st.subheader(f"📈 {sym.replace('.NS', '')}")
     
-    if not data.empty:
+    if not data.empty and len(data) > 10:
         latest = data.iloc[-1]
-        prev_idx = max(0, len(data) - 10)
-        change = (latest['Close'] - data.iloc[prev_idx]['Close']) / data.iloc[prev_idx]['Close'] * 100
+        prev = data.iloc[-10]
+        change = (latest['Close'] - prev['Close']) / prev['Close'] * 100
         avg_volume = data['Volume'].mean()
-        current_volume = data['Volume'].iloc[-1] if len(data) > 0 else 0
+        current_volume = data['Volume'].iloc[-1]
         volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1.0
-
-        fig = go.Figure(data=[go.Candlestick(x=data.index, open=data['Open'], high=data['High'], low=data['Low'], close=data['Close'])])
-        fig.update_layout(height=350, title=f"{sym} Chart")
-        st.plotly_chart(fig, use_container_width=True)
     else:
         change = 0.0
         volume_ratio = 1.0
         latest = pd.Series({'Close': 0})
+
+    fig = go.Figure(data=[go.Candlestick(x=data.index, open=data['Open'], high=data['High'], low=data['Low'], close=data['Close'])]) if not data.empty else go.Figure()
+    fig.update_layout(height=350, title=f"{sym} Chart")
+    st.plotly_chart(fig, use_container_width=True)
 
     # Dynamic Position Sizing
     risk_amount = st.session_state.portfolio['cash'] * (risk_per_trade / 100)
@@ -103,35 +103,13 @@ for sym in sectors[selected]:
         st.session_state.portfolio['cash'] -= trade_size
         st.success(f"✅ Executed | Size ₹{trade_size:.0f} | SL ₹{sl} | Target ₹{target}")
 
-        alert = f"<b>ProphetID TRADE</b>\nSymbol: {sym.replace('.NS','')}\nAction: {signal}\nSize: ₹{trade_size:.0f}\nSL: ₹{sl} | Target: ₹{target}\nVolume Ratio: {volume_ratio:.2f}x"
+        alert = f"<b>ProphetID TRADE</b>\nSymbol: {sym.replace('.NS','')}\nAction: {signal}\nSize: ₹{trade_size:.0f}\nSL: ₹{sl} | Target: ₹{target}\nVolume: {volume_ratio:.2f}x"
         send_telegram(alert)
 
         if mode == "Zerodha Live" and kite:
             try:
                 qty = max(1, int(trade_size / entry_price))
-                kite.place_order(
-                    variety=kite.VARIETY_BO,
-                    tradingsymbol=sym.replace(".NS",""),
-                    exchange=kite.EXCHANGE_NSE,
-                    transaction_type=kite.TRANSACTION_TYPE_BUY if "BUY" in signal else kite.TRANSACTION_TYPE_SELL,
-                    quantity=qty,
-                    product=kite.PRODUCT_MIS,
-                    order_type=kite.ORDER_TYPE_MARKET,
-                    squareoff=int(abs(target - entry_price) * qty),
-                    stoploss=int(abs(entry_price - sl) * qty)
-                )
-                st.success("✅ Bracket Order Placed!")
-            except Exception as e:
-                st.error(f"Order Failed: {e}")
-
-# Portfolio
-st.header("💰 Portfolio Summary")
-c1, c2, c3 = st.columns(3)
-c1.metric("Remaining Limit", f"₹{st.session_state.portfolio['cash']}")
-c2.metric("Today's P&L", f"₹{st.session_state.portfolio['pnl']:.2f}")
-c3.metric("Win Days", st.session_state.portfolio['days_profitable'])
-
-if st.button("🛑 Manual Square-off All"):
-    square_off_all()
-
-st.caption("ProphetID v5.5 | Dynamic Sizing + Volume Analysis + Auto Square-off")
+                kite.place_order(variety=kite.VARIETY_BO, tradingsymbol=sym.replace(".NS",""), exchange=kite.EXCHANGE_NSE,
+                                 transaction_type=kite.TRANSACTION_TYPE_BUY if "BUY" in signal else kite.TRANSACTION_TYPE_SELL,
+                                 quantity=qty, product=kite.PRODUCT_MIS, order_type=kite.ORDER_TYPE_MARKET,
+                                 squareoff=int(abs(target - entry_price) * qty), stoploss=int(abs(entry_price - sl)
