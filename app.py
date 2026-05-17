@@ -4,10 +4,10 @@ import yfinance as yf
 from datetime import datetime
 import requests
 import plotly.graph_objects as go
-import time
+from kiteconnect import KiteConnect
 
-st.set_page_config(page_title="ProphetID", layout="wide", page_icon="🚀")
-st.title("🚀 ProphetID - NSE Intraday Trading Prophet (₹10k → Performance Upgrade)")
+st.set_page_config(page_title="ProphetID", layout="wide")
+st.title("🚀 ProphetID - NSE Intraday Trading Prophet (Zerodha Live Ready)")
 
 # Portfolio
 if 'portfolio' not in st.session_state:
@@ -18,12 +18,25 @@ telegram_token = st.secrets["telegram"]["bot_token"]
 chat_id = st.secrets["telegram"]["chat_id"]
 
 st.sidebar.header("⚙️ Settings")
-broker_mode = st.sidebar.selectbox("Broker Mode", ["Paper Trading", "Zerodha Live (Coming Soon)"])
+mode = st.sidebar.selectbox("Trading Mode", ["Paper Trading", "Zerodha Live"])
 
-if st.sidebar.button("🔍 Test Telegram"):
-    requests.post(f"https://api.telegram.org/bot{telegram_token}/sendMessage", 
-                  json={"chat_id": chat_id, "text": "<b>✅ ProphetID Live!</b>", "parse_mode": "HTML"})
-    st.sidebar.success("Test sent!")
+# Zerodha Credentials (Add in Streamlit Secrets)
+try:
+    api_key = st.secrets["zerodha"]["api_key"]
+    api_secret = st.secrets["zerodha"]["api_secret"]
+    access_token = st.secrets.get("zerodha", {}).get("access_token", None)
+    kite = KiteConnect(api_key=api_key)
+    if access_token:
+        kite.set_access_token(access_token)
+    kite_ready = True
+except:
+    kite_ready = False
+    kite = None
+
+if mode == "Zerodha Live" and kite_ready:
+    st.sidebar.success("✅ Zerodha Connected")
+else:
+    st.sidebar.warning("Zerodha Live: Add credentials in Secrets")
 
 def send_telegram(message):
     try:
@@ -32,9 +45,6 @@ def send_telegram(message):
     except:
         pass
 
-# Auto Refresh
-st.sidebar.info("Auto-refresh every 60s enabled")
-
 @st.cache_data(ttl=60)
 def get_data(symbol):
     try:
@@ -42,32 +52,22 @@ def get_data(symbol):
     except:
         return pd.DataFrame()
 
-def fetch_news():
-    try:
-        # Simulated + real sources
-        news = [
-            "Metals strong on global cues & Tata Steel results (May 2026)",
-            "Crude >$100 - Energy & Pharma defensive",
-            "Nifty support at 23,500 | Resistance 23,800",
-            "FII selling continues but DII buying support"
-        ]
-        return news
-    except:
-        return ["Market News Loading..."]
+st.header("📊 ProphetID Smart Picks + News")
 
-st.header("📊 ProphetID Smart Intraday Picks + Live News")
-
-news = fetch_news()
-st.subheader("📰 Market News & Sentiment")
+# News
+news = [
+    "Metals strong on global cues", 
+    "Pharma defensive", 
+    "Nifty support 23,500 | Resistance 23,800"
+]
 for item in news:
     st.write(f"• {item}")
 
 sectors = {
     "Metals 🔥": ["TATASTEEL.NS", "HINDALCO.NS"],
-    "Pharma Defensive": ["DRREDDY.NS", "CIPLA.NS"],
+    "Pharma": ["DRREDDY.NS", "CIPLA.NS"],
     "Auto": ["TATAMOTORS.NS"],
-    "High Volume": ["BHARTIARTL.NS", "RELIANCE.NS"],
-    "IT": ["HCLTECH.NS"]
+    "High Volume": ["BHARTIARTL.NS", "RELIANCE.NS"]
 }
 
 selected = st.selectbox("Choose Sector", list(sectors.keys()))
@@ -80,56 +80,67 @@ for sym in sectors[selected]:
         latest = data.iloc[-1]
         prev = data.iloc[-2] if len(data) > 1 else latest
         change = (latest['Close'] - prev['Close']) / prev['Close'] * 100
-        
         fig = go.Figure(data=[go.Candlestick(x=data.index, open=data['Open'], high=data['High'], low=data['Low'], close=data['Close'])])
-        fig.update_layout(height=380, title=f"{sym} 5-min Chart")
+        fig.update_layout(height=380, title=f"{sym} Chart")
         st.plotly_chart(fig, use_container_width=True)
-        
-        col1, col2, col3 = st.columns(3)
-        col1.metric(sym.replace(".NS",""), f"₹{latest['Close']:.2f}", f"{change:.2f}%")
-        col2.write("**ORB Ready** | High Liquidity")
-        signal = "🟢 STRONG BUY" if change > 0.3 else "🔴 SELL" if change < -0.3 else "🟡 MONITOR"
-        col3.write(f"**Signal**: {signal}")
     else:
-        change = 0
-        signal = "🟡 MONITOR"
+        change = 0.0
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric(sym.replace(".NS",""), f"₹{latest['Close']:.2f}" if not data.empty else "N/A", f"{change:.2f}%")
+    signal = "🟢 STRONG BUY" if change > 0.3 else "🔴 SELL" if change < -0.3 else "🟡 MONITOR"
+    col3.write(f"**Signal**: {signal}")
 
     trade_size = min(4500, st.session_state.portfolio['cash'])
     if st.button(f"🚀 EXECUTE {signal} - {sym.replace('.NS','')} (₹{trade_size})", 
                  key=f"exec_{sym}", use_container_width=True, type="primary"):
         
+        # Paper Mode
         pnl = trade_size * (0.018 if "BUY" in signal else -0.012)
         st.session_state.portfolio['cash'] -= trade_size
         st.session_state.portfolio['pnl'] += pnl
         st.session_state.portfolio['trades'].append({
-            "symbol": sym.replace(".NS",""), "action": signal,
-            "size": trade_size, "pnl": round(pnl,2), "time": datetime.now().strftime("%H:%M")
+            "symbol": sym.replace(".NS",""), "action": signal, "size": trade_size, 
+            "pnl": round(pnl,2), "time": datetime.now().strftime("%H:%M"), "mode": mode
         })
         
-        alert = f"""<b>🚀 ProphetID TRADE EXECUTED</b>
+        alert = f"""<b>🚀 ProphetID TRADE EXECUTED ({mode})</b>
 Symbol: {sym.replace('.NS','')}
 Action: {signal}
 Size: ₹{trade_size}
 P&L: ₹{pnl:.2f}
 Remaining: ₹{st.session_state.portfolio['cash']}"""
         send_telegram(alert)
-        st.success("✅ Trade Executed + Telegram Sent!")
+        st.success(f"✅ {mode} Trade Executed!")
 
-# Performance Upgrade
-if st.session_state.portfolio['pnl'] > 300:
-    st.session_state.portfolio['cash'] = max(st.session_state.portfolio['cash'], 15000)
-    st.balloons()
-    send_telegram("<b>🎉 LIMIT UPGRADED to ₹15,000!</b>")
+        # === ZERODHA LIVE ORDER ===
+        if mode == "Zerodha Live" and kite:
+            try:
+                order = kite.place_order(
+                    variety=kite.VARIETY_REGULAR,
+                    tradingsymbol=sym.replace(".NS", ""),
+                    exchange=kite.EXCHANGE_NSE,
+                    transaction_type=kite.TRANSACTION_TYPE_BUY if "BUY" in signal else kite.TRANSACTION_TYPE_SELL,
+                    quantity=int(trade_size / latest['Close']) if not data.empty else 1,
+                    product=kite.PRODUCT_MIS,   # Intraday
+                    order_type=kite.ORDER_TYPE_MARKET,
+                    validity=kite.VALIDITY_DAY
+                )
+                st.success(f"✅ Zerodha Order Placed! Order ID: {order}")
+                send_telegram(f"<b>Zerodha Order ID:</b> {order}")
+            except Exception as e:
+                st.error(f"Zerodha Order Failed: {e}")
 
-# Portfolio
+# Portfolio + Upgrade
 st.header("💰 Portfolio Summary")
 c1, c2, c3 = st.columns(3)
 c1.metric("Remaining Daily Limit", f"₹{st.session_state.portfolio['cash']}")
 c2.metric("Today's P&L", f"₹{st.session_state.portfolio['pnl']:.2f}")
 c3.metric("Profitable Days", st.session_state.portfolio['days_profitable'])
 
-if st.button("📨 Send Daily Summary"):
-    send_telegram(f"<b>ProphetID Daily Summary</b>\nP&L: ₹{st.session_state.portfolio['pnl']:.2f}\nRemaining: ₹{st.session_state.portfolio['cash']}")
-    st.success("Summary Sent!")
+if st.session_state.portfolio['pnl'] > 400:
+    st.session_state.portfolio['cash'] = 15000
+    st.balloons()
+    send_telegram("<b>🎉 LIMIT UPGRADED to ₹15,000</b>")
 
-st.caption("ProphetID v2.5 | Zerodha Ready | Auto News | Performance Limit Upgrade | Auto-refresh ON")
+st.caption("ProphetID v3.0 | Zerodha Live | News | Performance Upgrade | Telegram")
