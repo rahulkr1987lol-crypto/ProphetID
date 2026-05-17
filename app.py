@@ -12,28 +12,45 @@ st.title("🚀 ProphetID - NSE Intraday Trading Prophet")
 if 'portfolio' not in st.session_state:
     st.session_state.portfolio = {'cash': 10000, 'trades': [], 'pnl': 0, 'days_profitable': 0}
 
-# Safe Secrets Loading
+# Secrets
 try:
     telegram_token = st.secrets["telegram"]["bot_token"]
     chat_id = st.secrets["telegram"]["chat_id"]
+    secrets_ok = True
 except:
     telegram_token = None
     chat_id = None
-    st.sidebar.error("⚠️ Set Secrets in Streamlit Cloud Settings")
+    secrets_ok = False
 
 st.sidebar.header("Settings")
 broker = st.sidebar.selectbox("Broker", ["Zerodha Kite", "Upstox", "Paper Trading Only"])
 
-if telegram_token:
-    st.sidebar.success("✅ Telegram Connected Permanently")
+if secrets_ok:
+    st.sidebar.success("✅ Telegram Connected")
+else:
+    st.sidebar.error("Set Secrets in Manage App → Secrets")
 
 def send_telegram(message):
-    if telegram_token and chat_id:
+    if secrets_ok:
         try:
             url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
-            requests.post(url, json={"chat_id": chat_id, "text": message, "parse_mode": "HTML"}, timeout=10)
-        except:
-            pass
+            r = requests.post(url, json={"chat_id": chat_id, "text": message, "parse_mode": "HTML"}, timeout=10)
+            if r.status_code == 200:
+                return True
+            else:
+                st.sidebar.error(f"Telegram Error: {r.text}")
+                return False
+        except Exception as e:
+            st.sidebar.error(f"Telegram Failed: {str(e)}")
+            return False
+    return False
+
+# Test Telegram Button
+if st.sidebar.button("🔍 Test Telegram Connection"):
+    if send_telegram("<b>✅ ProphetID Test Successful!</b>\nYour alerts are working."):
+        st.sidebar.success("Test message sent! Check your Telegram.")
+    else:
+        st.sidebar.error("Test failed - check secrets or token")
 
 @st.cache_data(ttl=300)
 def get_data(symbol):
@@ -45,7 +62,7 @@ def get_data(symbol):
     except:
         return pd.DataFrame()
 
-st.header("📊 ProphetID Today's High-Probability Picks")
+st.header("📊 ProphetID High-Probability Picks (Weekend Mode)")
 
 sectors = {
     "Metals": ["TATASTEEL.NS", "HINDALCO.NS"],
@@ -76,6 +93,7 @@ for sym in sectors[selected]:
         signal = "🟢 STRONG BUY" if change > 0 else "🔴 SELL" if change < 0 else "🟡 MONITOR"
         col3.write(f"**Signal**: {signal}")
         
+        # Always show Execute button
         trade_size = min(4500, st.session_state.portfolio['cash'])
         if st.button(f"🚀 EXECUTE {signal} - {sym.replace('.NS','')} (₹{trade_size})", 
                      key=f"exec_{sym}", use_container_width=True, type="primary"):
@@ -88,20 +106,22 @@ for sym in sectors[selected]:
                 "size": trade_size, "pnl": round(pnl,2), "time": datetime.now().strftime("%H:%M")
             })
             
-            alert = f"""<b>🚀 TRADE EXECUTED by ProphetID</b>
+            alert = f"""<b>🚀 ProphetID TRADE EXECUTED</b>
 Symbol: {sym.replace('.NS','')}
 Action: {signal}
 Size: ₹{trade_size}
-P&L: ₹{pnl:.2f}
-Remaining: ₹{st.session_state.portfolio['cash']}"""
+Sim P&L: ₹{pnl:.2f}
+Remaining Limit: ₹{st.session_state.portfolio['cash']}"""
             
             send_telegram(alert)
-            st.success(f"✅ Trade Executed! Telegram sent.")
+            st.success(f"✅ Trade Executed by ProphetID! Check Telegram.")
             
             if pnl > 0:
                 st.session_state.portfolio['days_profitable'] += 1
+    else:
+        st.info("Using last known data (Market closed)")
 
-# Portfolio Summary
+# Portfolio
 st.header("💰 Portfolio Summary")
 c1, c2, c3 = st.columns(3)
 c1.metric("Remaining Daily Limit", f"₹{st.session_state.portfolio['cash']}")
@@ -112,4 +132,4 @@ if st.button("📨 Send Daily Summary to Telegram"):
     send_telegram(f"<b>ProphetID Daily Summary</b>\nP&L: ₹{st.session_state.portfolio['pnl']:.2f}\nRemaining: ₹{st.session_state.portfolio['cash']}")
     st.success("Summary sent!")
 
-st.caption("ProphetID v1.0 | ₹10,000 Daily Limit | Ready for Intraday")
+st.caption("ProphetID v1.1 | Test Telegram from sidebar | Buttons always visible")
