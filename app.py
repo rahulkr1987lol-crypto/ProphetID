@@ -1,8 +1,8 @@
 import streamlit as st
 import yfinance as yf
+import plotly.graph_objects as go
 from datetime import datetime
 import requests
-import plotly.graph_objects as go
 from kiteconnect import KiteConnect
 
 st.set_page_config(page_title="ProphetID", layout="wide")
@@ -10,7 +10,7 @@ st.title("🚀 ProphetID - Stable Working Version")
 
 # Portfolio
 if 'portfolio' not in st.session_state:
-    st.session_state.portfolio = {'cash': 10000, 'pnl': 0}
+    st.session_state.portfolio = {'cash': 10000}
 
 # Secrets
 telegram_token = st.secrets["telegram"]["bot_token"]
@@ -54,16 +54,16 @@ sectors = {
 selected = st.selectbox("Choose Sector", list(sectors.keys()))
 
 for sym in sectors[selected]:
-    data = yf.download(sym, period="5d", interval="5m", progress=False)
+    data = yf.download(sym, period="1d", interval="5m", progress=False)
     st.subheader(f"📈 {sym.replace('.NS', '')}")
     
     if not data.empty:
         latest = data.iloc[-1]
-        change = (latest['Close'] - data.iloc[0]['Close']) / data.iloc[0]['Close'] * 100 if len(data) > 1 else 0.0
-        price = latest['Close']
-    else:
+        price = float(latest['Close'])
         change = 0.0
+    else:
         price = 0.0
+        change = 0.0
 
     fig = go.Figure(data=[go.Candlestick(x=data.index, open=data['Open'], high=data['High'], low=data['Low'], close=data['Close'])]) if not data.empty else go.Figure()
     fig.update_layout(height=350, title=f"{sym} Chart")
@@ -74,20 +74,18 @@ for sym in sectors[selected]:
     col1, col2, col3 = st.columns(3)
     col1.metric(sym.replace(".NS",""), f"₹{price:.2f}", f"{change:.2f}%")
     col2.metric("Size", f"₹{trade_size}")
-    signal = "🟢 BUY" if change > 0.5 else "🔴 SELL" if change < -0.5 else "HOLD"
+    signal = "🟢 BUY"
     col3.write(f"**{signal}**")
 
     if st.button(f"🚀 EXECUTE {signal} {sym.replace('.NS','')} ₹{trade_size}", key=sym):
         st.session_state.portfolio['cash'] -= trade_size
         st.success(f"✅ Trade Executed on {sym.replace('.NS','')}")
 
-        send_telegram(f"TRADE EXECUTED\nSymbol: {sym.replace('.NS','')}\nAction: {signal}\nSize: ₹{trade_size}")
+        send_telegram(f"TRADE EXECUTED\nSymbol: {sym.replace('.NS','')}\nSize: ₹{trade_size}")
 
 # Portfolio
 st.header("💰 Portfolio")
-c1, c2 = st.columns(2)
-c1.metric("Remaining Cash", f"₹{st.session_state.portfolio['cash']}")
-c2.metric("Today's P&L", f"₹{st.session_state.portfolio['pnl']:.2f}")
+st.metric("Remaining Cash", f"₹{st.session_state.portfolio['cash']}")
 
 if st.button("🛑 Manual Square-off All"):
     st.success("All positions squared off!")
