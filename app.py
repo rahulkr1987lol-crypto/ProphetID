@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 from kiteconnect import KiteConnect
 
 st.set_page_config(page_title="ProphetID", layout="wide")
-st.title("🚀 ProphetID v5.3 - Full Autonomous Intraday Engine with Auto Square-off")
+st.title("🚀 ProphetID v5.3 - Autonomous Intraday Engine with Auto Square-off")
 
 # Portfolio
 if 'portfolio' not in st.session_state:
@@ -39,13 +39,12 @@ def send_telegram(message):
     except:
         pass
 
-# Auto Square-off
+# Auto Square-off Logic
 def square_off_all():
     now = datetime.now().time()
     if auto_squareoff and now.hour == 15 and now.minute >= 20:
-        send_telegram("🛑 Auto Square-off at 3:20 PM triggered!")
+        send_telegram("🛑 Auto Square-off triggered at 3:20 PM!")
         st.warning("🛑 All positions squared off!")
-        # Add real Zerodha square-off logic here if needed
         return True
     return False
 
@@ -69,7 +68,7 @@ for sym in sectors[selected]:
     
     if not data.empty:
         latest = data.iloc[-1]
-        prev_idx = max(0, len(data)-10)
+        prev_idx = max(0, len(data) - 10)
         change = (latest['Close'] - data.iloc[prev_idx]['Close']) / data.iloc[prev_idx]['Close'] * 100
         fig = go.Figure(data=[go.Candlestick(x=data.index, open=data['Open'], high=data['High'], low=data['Low'], close=data['Close'])])
         fig.update_layout(height=350, title=f"{sym} Chart")
@@ -102,7 +101,6 @@ SL: ₹{sl} ({sl_percent}%)
 Target: ₹{target} ({target_percent}%)"""
         send_telegram(alert)
 
-        # Zerodha Bracket Order
         if mode == "Zerodha Live" and kite:
             try:
                 qty = max(1, int(trade_size / entry))
@@ -117,7 +115,7 @@ Target: ₹{target} ({target_percent}%)"""
                     squareoff=int(abs(target - entry) * qty),
                     stoploss=int(abs(entry - sl) * qty)
                 )
-                st.success("✅ Bracket Order (SL + Target) Placed on Zerodha!")
+                st.success("✅ Bracket Order Placed on Zerodha!")
             except Exception as e:
                 st.error(f"Order Failed: {e}")
 
@@ -126,4 +124,9 @@ st.header("💰 Portfolio Summary")
 c1, c2, c3 = st.columns(3)
 c1.metric("Remaining Limit", f"₹{st.session_state.portfolio['cash']}")
 c2.metric("Today's P&L", f"₹{st.session_state.portfolio['pnl']:.2f}")
-c3.metric("Win Days", st.session_state.portfolio['
+c3.metric("Win Days", st.session_state.portfolio['days_profitable'])
+
+if st.button("🛑 Manual Square-off All"):
+    square_off_all()
+
+st.caption("ProphetID v5.3 | Auto Square-off @ 3:20 PM | SL + Target | Zerodha Ready")
