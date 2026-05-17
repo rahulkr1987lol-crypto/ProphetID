@@ -68,10 +68,28 @@ def get_data(symbol):
 
 st.header("📊 ProphetID Smart Picks + News")
 
-news = ["Metals strong on global cues", "Pharma defensive", "Nifty support ~23,500"]
+news = [
+    "Metals strong on global cues",
+    "Pharma defensive",
+    "Nifty support ~23,500",
+    "FII selling but DII buying support"
+]
 for item in news:
     st.write(f"• {item}")
 
 sectors = {
     "Metals 🔥": ["TATASTEEL.NS", "HINDALCO.NS"],
-    "Pharma
+    "Pharma": ["DRREDDY.NS", "CIPLA.NS"],
+    "Auto": ["TATAMOTORS.NS"],
+    "High Volume": ["BHARTIARTL.NS", "RELIANCE.NS"]
+}
+
+selected = st.selectbox("Choose Sector", list(sectors.keys()))
+
+for sym in sectors[selected]:
+    data = get_data(sym)
+    st.subheader(f"📈 {sym.replace('.NS', '')}")
+    
+    if not data.empty:
+        latest = data.iloc[-1]
+        prev
