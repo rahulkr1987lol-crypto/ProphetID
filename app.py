@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 from kiteconnect import KiteConnect
 
 st.set_page_config(page_title="ProphetID", layout="wide")
-st.title("🚀 ProphetID v5.5 - Autonomous Intraday Engine with Dynamic Sizing")
+st.title("🚀 ProphetID v5.5 - Autonomous Intraday Engine")
 
 # Portfolio
 if 'portfolio' not in st.session_state:
@@ -83,7 +83,7 @@ for sym in sectors[selected]:
     # Dynamic Position Sizing
     risk_amount = st.session_state.portfolio['cash'] * (risk_per_trade / 100)
     entry_price = latest['Close']
-    stop_distance = entry_price * (0.008)  # 0.8% default SL
+    stop_distance = entry_price * 0.008
     dynamic_qty = int(risk_amount / stop_distance) if stop_distance > 0 else 1
     trade_size = min(dynamic_qty * entry_price, st.session_state.portfolio['cash'] * 0.45)
 
@@ -101,6 +101,25 @@ for sym in sectors[selected]:
         target = round(entry_price * (1 + 2.5/100), 2) if "BUY" in signal else round(entry_price * (1 - 2.5/100), 2)
 
         st.session_state.portfolio['cash'] -= trade_size
-        st.success(f"✅ Executed | Dynamic Size ₹{trade_size:.0f} | SL ₹{sl} | Target ₹{target}")
+        st.success(f"✅ Executed | Size ₹{trade_size:.0f} | SL ₹{sl} | Target ₹{target}")
 
-        alert = f"""<b>ProphetID
+        alert = f"<b>ProphetID TRADE</b>\nSymbol: {sym.replace('.NS','')}\nAction: {signal}\nSize: ₹{trade_size:.0f}\nSL: ₹{sl} | Target: ₹{target}\nVolume: {volume_ratio:.2f}x"
+        send_telegram(alert)
+
+        if mode == "Zerodha Live" and kite:
+            try:
+                qty = max(1, int(trade_size / entry_price))
+                kite.place_order(variety=kite.VARIETY_BO, tradingsymbol=sym.replace(".NS",""), exchange=kite.EXCHANGE_NSE,
+                                 transaction_type=kite.TRANSACTION_TYPE_BUY if "BUY" in signal else kite.TRANSACTION_TYPE_SELL,
+                                 quantity=qty, product=kite.PRODUCT_MIS, order_type=kite.ORDER_TYPE_MARKET,
+                                 squareoff=int(abs(target - entry_price) * qty), stoploss=int(abs(entry_price - sl) * qty))
+                st.success("✅ Bracket Order Placed!")
+            except Exception as e:
+                st.error(f"Order Failed: {e}")
+
+# Portfolio
+st.header("💰 Portfolio Summary")
+c1, c2, c3 = st.columns(3)
+c1.metric("Remaining Limit", f"₹{st.session_state.portfolio['cash']}")
+c2.metric("Today's P&L", f"₹{st.session_state.portfolio['pnl']:.2f}")
+c3.metric("
