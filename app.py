@@ -1,12 +1,12 @@
 import streamlit as st
 import yfinance as yf
-import plotly.graph_objects as go
 from datetime import datetime
 import requests
+import plotly.graph_objects as go
 from kiteconnect import KiteConnect
 
 st.set_page_config(page_title="ProphetID", layout="wide")
-st.title("🚀 ProphetID - Stable & Working Version")
+st.title("🚀 ProphetID - Stable Working Version")
 
 # Portfolio
 if 'portfolio' not in st.session_state:
@@ -39,7 +39,7 @@ def send_telegram(message):
 if auto_squareoff:
     now = datetime.now().time()
     if now.hour == 15 and now.minute >= 20:
-        send_telegram("🛑 Auto Square-off at 3:20 PM triggered!")
+        send_telegram("🛑 Auto Square-off triggered at 3:20 PM!")
         st.warning("All positions squared off!")
 
 st.header("📊 ProphetID Scanner")
@@ -60,9 +60,10 @@ for sym in sectors[selected]:
     if not data.empty:
         latest = data.iloc[-1]
         change = (latest['Close'] - data.iloc[0]['Close']) / data.iloc[0]['Close'] * 100 if len(data) > 1 else 0.0
+        price = latest['Close']
     else:
-        latest = pd.Series({'Close': 0})
         change = 0.0
+        price = 0.0
 
     fig = go.Figure(data=[go.Candlestick(x=data.index, open=data['Open'], high=data['High'], low=data['Low'], close=data['Close'])]) if not data.empty else go.Figure()
     fig.update_layout(height=350, title=f"{sym} Chart")
@@ -71,7 +72,7 @@ for sym in sectors[selected]:
     trade_size = min(4500, st.session_state.portfolio['cash'])
 
     col1, col2, col3 = st.columns(3)
-    col1.metric(sym.replace(".NS",""), f"₹{latest['Close']:.2f}", f"{change:.2f}%")
+    col1.metric(sym.replace(".NS",""), f"₹{price:.2f}", f"{change:.2f}%")
     col2.metric("Size", f"₹{trade_size}")
     signal = "🟢 BUY" if change > 0.5 else "🔴 SELL" if change < -0.5 else "HOLD"
     col3.write(f"**{signal}**")
@@ -80,7 +81,7 @@ for sym in sectors[selected]:
         st.session_state.portfolio['cash'] -= trade_size
         st.success(f"✅ Trade Executed on {sym.replace('.NS','')}")
 
-        send_telegram(f"TRADE: {signal} {sym.replace('.NS','')} | Size ₹{trade_size}")
+        send_telegram(f"TRADE EXECUTED\nSymbol: {sym.replace('.NS','')}\nAction: {signal}\nSize: ₹{trade_size}")
 
 # Portfolio
 st.header("💰 Portfolio")
