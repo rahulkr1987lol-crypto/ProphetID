@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 from kiteconnect import KiteConnect
 
 st.set_page_config(page_title="ProphetID", layout="wide")
-st.title("🚀 ProphetID v5.6 - Stable & Safe Version")
+st.title("🚀 ProphetID v5.7 - Stable & Safe Version")
 
 # Portfolio
 if 'portfolio' not in st.session_state:
@@ -17,7 +17,6 @@ if 'portfolio' not in st.session_state:
 telegram_token = st.secrets["telegram"]["bot_token"]
 chat_id = st.secrets["telegram"]["chat_id"]
 api_key = st.secrets["zerodha"]["api_key"]
-api_secret = st.secrets["zerodha"].get("api_secret", "")
 access_token = st.secrets["zerodha"].get("access_token", None)
 
 st.sidebar.header("⚙️ Controls")
@@ -64,10 +63,9 @@ for sym in sectors[selected]:
     data = yf.download(sym, period="5d", interval="5m", progress=False)
     st.subheader(f"📈 {sym.replace('.NS', '')}")
     
-    if not data.empty and len(data) > 5:
+    if not data.empty:
         latest = data.iloc[-1]
-        prev = data.iloc[-5]
-        change = (latest['Close'] - prev['Close']) / prev['Close'] * 100
+        change = (latest['Close'] - data.iloc[0]['Close']) / data.iloc[0]['Close'] * 100 if len(data) > 1 else 0
     else:
         change = 0.0
         latest = pd.Series({'Close': 0})
@@ -76,29 +74,26 @@ for sym in sectors[selected]:
     fig.update_layout(height=350, title=f"{sym} Chart")
     st.plotly_chart(fig, use_container_width=True)
 
-    # Safe Dynamic Size
-    risk_amount = st.session_state.portfolio['cash'] * (risk_per_trade / 100)
-    entry_price = latest['Close']
-    trade_size = min(4500, st.session_state.portfolio['cash'] * 0.4)  # Safe fixed cap
+    trade_size = min(4500, int(st.session_state.portfolio['cash'] * 0.4))
 
     col1, col2, col3 = st.columns(3)
-    col1.metric(sym.replace(".NS",""), f"₹{entry_price:.2f}", f"{change:.2f}%")
-    col2.metric("Trade Size", f"₹{trade_size:.0f}")
+    col1.metric(sym.replace(".NS",""), f"₹{latest['Close']:.2f}", f"{change:.2f}%")
+    col2.metric("Suggested Size", f"₹{trade_size}")
     signal = "🟢 STRONG BUY" if change > 0.5 else "🔴 SELL" if change < -0.5 else "🟡 MONITOR"
     col3.write(f"**Signal**: {signal}")
 
-    if st.button(f"🚀 EXECUTE {signal} - {sym.replace('.NS','')} (₹{trade_size:.0f})", 
+    if st.button(f"🚀 EXECUTE {signal} - {sym.replace('.NS','')} (₹{trade_size})", 
                  key=f"exec_{sym}", use_container_width=True, type="primary"):
         
         st.session_state.portfolio['cash'] -= trade_size
-        st.success(f"✅ Trade Executed | Size ₹{trade_size:.0f}")
+        st.success(f"✅ Trade Executed on {sym.replace('.NS','')} | Size ₹{trade_size}")
 
-        alert = f"<b>ProphetID TRADE</b>\nSymbol: {sym.replace('.NS','')}\nAction: {signal}\nSize: ₹{trade_size:.0f}"
+        alert = f"<b>ProphetID TRADE</b>\nSymbol: {sym.replace('.NS','')}\nAction: {signal}\nSize: ₹{trade_size}"
         send_telegram(alert)
 
         if mode == "Zerodha Live" and kite:
             try:
-                qty = max(1, int(trade_size / entry_price))
+                qty = max(1, int(trade_size / latest['Close']))
                 kite.place_order(variety=kite.VARIETY_BO, tradingsymbol=sym.replace(".NS",""), exchange=kite.EXCHANGE_NSE,
                                  transaction_type=kite.TRANSACTION_TYPE_BUY if "BUY" in signal else kite.TRANSACTION_TYPE_SELL,
                                  quantity=qty, product=kite.PRODUCT_MIS, order_type=kite.ORDER_TYPE_MARKET,
@@ -117,4 +112,4 @@ c3.metric("Win Days", st.session_state.portfolio['days_profitable'])
 if st.button("🛑 Manual Square-off All"):
     square_off_all()
 
-st.caption("ProphetID v5.6 | Stable & Safe | Ready for Trading")
+st.caption("ProphetID v5.7 | Stable & Safe | Ready for Trading")
