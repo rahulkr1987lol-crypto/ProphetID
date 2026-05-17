@@ -39,7 +39,7 @@ def send_telegram(message):
 if auto_squareoff:
     now = datetime.now().time()
     if now.hour == 15 and now.minute >= 20:
-        send_telegram("🛑 Auto Square-off triggered at 3:20 PM!")
+        send_telegram("🛑 Auto Square-off at 3:20 PM!")
         st.warning("All positions squared off!")
 
 st.header("📊 ProphetID Scanner")
@@ -54,7 +54,7 @@ sectors = {
 selected = st.selectbox("Choose Sector", list(sectors.keys()))
 
 for sym in sectors[selected]:
-    data = yf.download(sym, period="1d", interval="5m", progress=False)
+    data = yf.download(sym, period="5d", interval="5m", progress=False)
     st.subheader(f"📈 {sym.replace('.NS', '')}")
     
     if not data.empty:
