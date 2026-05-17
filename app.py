@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 from kiteconnect import KiteConnect
 
 st.set_page_config(page_title="ProphetID", layout="wide")
-st.title("🚀 ProphetID v5.6 - Stable Autonomous Engine")
+st.title("🚀 ProphetID v5.6 - Stable Autonomous Intraday Engine")
 
 # Portfolio
 if 'portfolio' not in st.session_state:
@@ -103,13 +103,35 @@ for sym in sectors[selected]:
         st.session_state.portfolio['cash'] -= trade_size
         st.success(f"✅ Executed | Size ₹{trade_size:.0f} | SL ₹{sl} | Target ₹{target}")
 
-        alert = f"<b>ProphetID TRADE</b>\nSymbol: {sym.replace('.NS','')}\nAction: {signal}\nSize: ₹{trade_size:.0f}\nSL: ₹{sl} | Target: ₹{target}\nVolume: {volume_ratio:.2f}x"
+        alert = f"<b>ProphetID TRADE</b>\nSymbol: {sym.replace('.NS','')}\nAction: {signal}\nSize: ₹{trade_size:.0f}\nSL: ₹{sl} | Target: ₹{target}\nVolume Ratio: {volume_ratio:.2f}x"
         send_telegram(alert)
 
         if mode == "Zerodha Live" and kite:
             try:
                 qty = max(1, int(trade_size / entry_price))
-                kite.place_order(variety=kite.VARIETY_BO, tradingsymbol=sym.replace(".NS",""), exchange=kite.EXCHANGE_NSE,
-                                 transaction_type=kite.TRANSACTION_TYPE_BUY if "BUY" in signal else kite.TRANSACTION_TYPE_SELL,
-                                 quantity=qty, product=kite.PRODUCT_MIS, order_type=kite.ORDER_TYPE_MARKET,
-                                 squareoff=int(abs(target - entry_price) * qty), stoploss=int(abs(entry_price - sl)
+                kite.place_order(
+                    variety=kite.VARIETY_BO,
+                    tradingsymbol=sym.replace(".NS",""),
+                    exchange=kite.EXCHANGE_NSE,
+                    transaction_type=kite.TRANSACTION_TYPE_BUY if "BUY" in signal else kite.TRANSACTION_TYPE_SELL,
+                    quantity=qty,
+                    product=kite.PRODUCT_MIS,
+                    order_type=kite.ORDER_TYPE_MARKET,
+                    squareoff=int(abs(target - entry_price) * qty),
+                    stoploss=int(abs(entry_price - sl) * qty)
+                )
+                st.success("✅ Bracket Order Placed on Zerodha!")
+            except Exception as e:
+                st.error(f"Order Failed: {e}")
+
+# Portfolio
+st.header("💰 Portfolio Summary")
+c1, c2, c3 = st.columns(3)
+c1.metric("Remaining Limit", f"₹{st.session_state.portfolio['cash']}")
+c2.metric("Today's P&L", f"₹{st.session_state.portfolio['pnl']:.2f}")
+c3.metric("Win Days", st.session_state.portfolio['days_profitable'])
+
+if st.button("🛑 Manual Square-off All"):
+    square_off_all()
+
+st.caption("ProphetID v5.6 | Dynamic Sizing + Volume Analysis + Auto Square-off | Stable")
