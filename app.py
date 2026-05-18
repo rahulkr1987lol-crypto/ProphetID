@@ -7,11 +7,11 @@ import plotly.graph_objects as go
 from kiteconnect import KiteConnect
 
 st.set_page_config(page_title="ProphetID", layout="wide")
-st.title("🚀 ProphetID v5.8 - Full Market Scanner + Top Picks")
+st.title("🚀 ProphetID v5.8 - Full Market Scanner + Top Picks (Monday Ready)")
 
 # Portfolio
 if 'portfolio' not in st.session_state:
-    st.session_state.portfolio = {'cash': 10000, 'pnl': 0}
+    st.session_state.portfolio = {'cash': 10000, 'pnl': 0, 'trades': []}
 
 # Secrets
 telegram_token = st.secrets["telegram"]["bot_token"]
@@ -19,7 +19,7 @@ chat_id = st.secrets["telegram"]["chat_id"]
 api_key = st.secrets["zerodha"]["api_key"]
 access_token = st.secrets["zerodha"].get("access_token", None)
 
-st.sidebar.header("Controls")
+st.sidebar.header("⚙️ Controls")
 mode = st.sidebar.selectbox("Trading Mode", ["Paper Trading", "Zerodha Live"])
 auto_squareoff = st.sidebar.checkbox("Auto Square-off at 3:20 PM", value=True)
 risk_per_trade = st.sidebar.slider("Risk per Trade %", 0.5, 2.0, 1.0, 0.1)
@@ -41,32 +41,29 @@ def send_telegram(message):
 if auto_squareoff:
     now = datetime.now().time()
     if now.hour == 15 and now.minute >= 20:
-        send_telegram("🛑 Auto Square-off at 3:20 PM!")
+        send_telegram("🛑 Auto Square-off at 3:20 PM triggered!")
         st.warning("All positions squared off!")
 
 st.header("📊 ProphetID Full Market Scanner - Top Picks")
 
-# Expanded Stock List (Liquid + Volatile)
-all_symbols = ["TATASTEEL.NS", "HINDALCO.NS", "DRREDDY.NS", "CIPLA.NS", "TATAMOTORS.NS", 
-               "BHARTIARTL.NS", "RELIANCE.NS", "HDFCBANK.NS", "SBIN.NS", "INFY.NS", 
-               "HCLTECH.NS", "ADANIPORTS.NS", "COALINDIA.NS", "ONGC.NS"]
+# Expanded List
+symbols = ["TATASTEEL.NS", "HINDALCO.NS", "DRREDDY.NS", "CIPLA.NS", "TATAMOTORS.NS", 
+           "BHARTIARTL.NS", "RELIANCE.NS", "HDFCBANK.NS", "SBIN.NS", "INFY.NS", 
+           "HCLTECH.NS", "ADANIPORTS.NS", "COALINDIA.NS", "ONGC.NS", "AXISBANK.NS"]
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=30)
 def full_scan():
     results = []
-    for sym in all_symbols:
+    for sym in symbols:
         try:
-            data = yf.download(sym, period="5d", interval="5m", progress=False)
+            data = yf.download(sym, period="1d", interval="5m", progress=False)
             if len(data) < 10:
                 continue
             latest = data.iloc[-1]
-            prev = data.iloc[-10]
-            change = (latest['Close'] - prev['Close']) / prev['Close'] * 100
-            avg_vol = data['Volume'].mean()
-            curr_vol = data['Volume'].iloc[-1]
-            volume_ratio = curr_vol / avg_vol if avg_vol > 0 else 1.0
+            change = (latest['Close'] - data.iloc[0]['Close']) / data.iloc[0]['Close'] * 100
+            volume_ratio = data['Volume'].iloc[-1] / data['Volume'].mean() if data['Volume'].mean() > 0 else 1.0
 
-            if abs(change) > 0.6 and volume_ratio > 1.2:
+            if abs(change) > 0.4 and volume_ratio > 1.1:
                 signal = "🟢 STRONG BUY" if change > 0 else "🔴 SELL"
                 results.append({
                     "symbol": sym.replace(".NS",""),
@@ -77,17 +74,16 @@ def full_scan():
                 })
         except:
             continue
-    # Sort by strongest momentum
     results.sort(key=lambda x: abs(x['change']), reverse=True)
-    return results[:10]  # Top 10 best opportunities
+    return results[:10]
 
 if st.button("🔄 Run Full Market Scan"):
-    with st.spinner("Scanning market for best opportunities..."):
+    with st.spinner("Scanning market..."):
         top_picks = full_scan()
         if top_picks:
-            for pick in top_picks:
-                st.success(f"**{pick['symbol']}** → {pick['signal']} | {pick['change']}% | Volume {pick['volume_ratio']}x | Price ₹{pick['price']}")
+            for p in top_picks:
+                st.success(f"**{p['symbol']}** → {p['signal']} | {p['change']}% | Volume {p['volume_ratio']}x | ₹{p['price']}")
         else:
-            st.info("No strong setups right now. Try again later.")
+            st.info("No strong setups yet. Market is opening - try again in 15-30 mins.")
 
-st.caption("ProphetID v5.8 | Scans 14 liquid stocks | Shows Top 10 best opportunities | Stable Version")
+st.caption("ProphetID v5.8 | Scans 15 liquid stocks | Shows Top 10 | Ready for Monday")
