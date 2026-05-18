@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 from kiteconnect import KiteConnect
 
 st.set_page_config(page_title="ProphetID", layout="wide")
-st.title("🚀 ProphetID v5.9 - Live Market Scanner (Monday Ready)")
+st.title("🚀 ProphetID v5.9 - Live Market Scanner (Updated for Today)")
 
 # Portfolio
 if 'portfolio' not in st.session_state:
@@ -46,7 +46,6 @@ if auto_squareoff:
 
 st.header("📊 ProphetID Live Market Scanner")
 
-# Larger Stock Universe
 symbols = ["TATASTEEL.NS", "HINDALCO.NS", "DRREDDY.NS", "CIPLA.NS", "TATAMOTORS.NS", 
            "BHARTIARTL.NS", "RELIANCE.NS", "HDFCBANK.NS", "SBIN.NS", "INFY.NS", 
            "HCLTECH.NS", "ADANIPORTS.NS", "COALINDIA.NS", "ONGC.NS", "AXISBANK.NS", "ICICIBANK.NS"]
@@ -63,7 +62,8 @@ def full_scan():
             change = (latest['Close'] - data.iloc[0]['Close']) / data.iloc[0]['Close'] * 100
             volume_ratio = data['Volume'].iloc[-1] / data['Volume'].mean() if data['Volume'].mean() > 0 else 1.0
 
-            if abs(change) > 0.3 or volume_ratio > 1.3:   # Lower threshold for live market
+            # Lower threshold for live market
+            if abs(change) > 0.15 or volume_ratio > 1.1:
                 signal = "🟢 STRONG BUY" if change > 0 else "🔴 SELL"
                 results.append({
                     "symbol": sym.replace(".NS",""),
@@ -75,15 +75,15 @@ def full_scan():
         except:
             continue
     results.sort(key=lambda x: abs(x['change']), reverse=True)
-    return results[:10]
+    return results[:12]
 
-if st.button("🔄 Run Full Market Scan (Live)"):
-    with st.spinner("Connecting to market and scanning best opportunities..."):
+if st.button("🔄 Run Full Market Scan Now"):
+    with st.spinner("Scanning live market..."):
         top_picks = full_scan()
         if top_picks:
             for p in top_picks:
                 st.success(f"**{p['symbol']}** → {p['signal']} | {p['change']}% | Volume {p['volume_ratio']}x | ₹{p['price']}")
         else:
-            st.info("Market is slow or just opened. Try again in 10-15 minutes.")
+            st.info("No strong moves yet. Refresh in 5-10 minutes.")
 
-st.caption("ProphetID v5.9 | Scans 16 liquid stocks | Lower threshold for live market | Ready for Today")
+st.caption("ProphetID v5.9 | Live Scanner | Lower threshold for active market | Ready for Trading")
