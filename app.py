@@ -1,57 +1,33 @@
 import streamlit as st
-import pandas as pd
 import yfinance as yf
 from datetime import datetime
 import requests
 import plotly.graph_objects as go
-from kiteconnect import KiteConnect
 
 st.set_page_config(page_title="ProphetID", layout="wide")
-st.title("🚀 ProphetID v5.9 - Live Market Scanner (Updated for Today)")
+st.title("🚀 ProphetID v6.0 - Practical Intraday Scanner (Live Market)")
 
 # Portfolio
 if 'portfolio' not in st.session_state:
-    st.session_state.portfolio = {'cash': 10000, 'pnl': 0}
-
-# Secrets
-telegram_token = st.secrets["telegram"]["bot_token"]
-chat_id = st.secrets["telegram"]["chat_id"]
-api_key = st.secrets["zerodha"]["api_key"]
-access_token = st.secrets["zerodha"].get("access_token", None)
+    st.session_state.portfolio = {'cash': 10000}
 
 st.sidebar.header("Controls")
-mode = st.sidebar.selectbox("Trading Mode", ["Paper Trading", "Zerodha Live"])
-auto_squareoff = st.sidebar.checkbox("Auto Square-off at 3:20 PM", value=True)
+mode = st.sidebar.selectbox("Mode", ["Paper Trading", "Zerodha Live (Coming)"])
 risk_per_trade = st.sidebar.slider("Risk per Trade %", 0.5, 2.0, 1.0, 0.1)
 
-kite = None
-if mode == "Zerodha Live" and access_token:
-    kite = KiteConnect(api_key=api_key)
-    kite.set_access_token(access_token)
-    st.sidebar.success("✅ Zerodha Live")
-
 def send_telegram(message):
-    try:
-        requests.post(f"https://api.telegram.org/bot{telegram_token}/sendMessage",
-                      json={"chat_id": chat_id, "text": message, "parse_mode": "HTML"})
-    except:
-        pass
+    # Optional - you can keep your token if you want alerts
+    pass
 
-# Auto Square-off
-if auto_squareoff:
-    now = datetime.now().time()
-    if now.hour == 15 and now.minute >= 20:
-        send_telegram("🛑 Auto Square-off at 3:20 PM!")
-        st.warning("All positions squared off!")
+st.header("📊 Live Market Scanner - Best Intraday Options")
 
-st.header("📊 ProphetID Live Market Scanner")
+# Big list of liquid stocks
+symbols = ["RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "ICICIBANK.NS", "SBIN.NS", 
+           "BHARTIARTL.NS", "HINDUNILVR.NS", "LT.NS", "AXISBANK.NS", "TATAMOTORS.NS", 
+           "TATASTEEL.NS", "HINDALCO.NS", "DRREDDY.NS", "CIPLA.NS", "ADANIPORTS.NS"]
 
-symbols = ["TATASTEEL.NS", "HINDALCO.NS", "DRREDDY.NS", "CIPLA.NS", "TATAMOTORS.NS", 
-           "BHARTIARTL.NS", "RELIANCE.NS", "HDFCBANK.NS", "SBIN.NS", "INFY.NS", 
-           "HCLTECH.NS", "ADANIPORTS.NS", "COALINDIA.NS", "ONGC.NS", "AXISBANK.NS", "ICICIBANK.NS"]
-
-@st.cache_data(ttl=30)
-def full_scan():
+@st.cache_data(ttl=20)
+def scan_market():
     results = []
     for sym in symbols:
         try:
@@ -59,12 +35,12 @@ def full_scan():
             if len(data) < 5:
                 continue
             latest = data.iloc[-1]
-            change = (latest['Close'] - data.iloc[0]['Close']) / data.iloc[0]['Close'] * 100
+            open_price = data.iloc[0]['Close']
+            change = (latest['Close'] - open_price) / open_price * 100
             volume_ratio = data['Volume'].iloc[-1] / data['Volume'].mean() if data['Volume'].mean() > 0 else 1.0
 
-            # Lower threshold for live market
-            if abs(change) > 0.15 or volume_ratio > 1.1:
-                signal = "🟢 STRONG BUY" if change > 0 else "🔴 SELL"
+            if abs(change) > 0.2 or volume_ratio > 1.2:   # Lower threshold for live market
+                signal = "🟢 BUY" if change > 0 else "🔴 SELL"
                 results.append({
                     "symbol": sym.replace(".NS",""),
                     "signal": signal,
@@ -75,15 +51,15 @@ def full_scan():
         except:
             continue
     results.sort(key=lambda x: abs(x['change']), reverse=True)
-    return results[:12]
+    return results
 
-if st.button("🔄 Run Full Market Scan Now"):
-    with st.spinner("Scanning live market..."):
-        top_picks = full_scan()
-        if top_picks:
-            for p in top_picks:
-                st.success(f"**{p['symbol']}** → {p['signal']} | {p['change']}% | Volume {p['volume_ratio']}x | ₹{p['price']}")
+if st.button("🔄 Scan Market Now"):
+    with st.spinner("Connecting to market and finding best opportunities..."):
+        picks = scan_market()
+        if picks:
+            for p in picks[:12]:
+                st.success(f"**{p['symbol']}** → {p['signal']} | **{p['change']}%** | Volume {p['volume_ratio']}x | ₹{p['price']}")
         else:
-            st.info("No strong moves yet. Refresh in 5-10 minutes.")
+            st.info("Market is very quiet right now. Try again in 5-10 minutes.")
 
-st.caption("ProphetID v5.9 | Live Scanner | Lower threshold for active market | Ready for Trading")
+st.caption("v6.0 | Scans 16 liquid stocks | Shows current movers | Paper Trading Recommended")
